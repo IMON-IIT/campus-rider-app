@@ -1,0 +1,35 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: ju-smart-ride-backend
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${POSTGRES_DB:jusmartride}
+    username: ${POSTGRES_USER:postgres}
+    password: ${POSTGRES_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: false
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+jusmartride:
+  security:
+    jwt:
+      secret: ${JWT_SECRET:ju_smart_ride_super_secure_jwt_secret_key_minimum_256_bits_length!}
+      expiration-ms: 86400000 # 24 hours
+  routing:
+    max-detour-ratio: 0.45
+    max-extra-distance-meters: 750.0
+    max-extra-time-seconds: 240
+    stale-location-threshold-seconds: 300

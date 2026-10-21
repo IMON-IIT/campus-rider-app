@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: com.jusmartride.ride.PendingRideQueueTest
+-------------------------------------------------------------------------------
+Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.184 s -- in com.jusmartride.ride.PendingRideQueueTest

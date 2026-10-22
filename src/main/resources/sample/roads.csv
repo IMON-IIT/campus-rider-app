@@ -1,0 +1,34 @@
+from,to,distanceMeters,roadName
+dairy_gate,shaheed_minar,116.6,Shaheed Minar Road
+dairy_gate,zahir_raihan_auditorium,123.3,Auditorium Avenue
+dairy_gate,social_science_building,162.8,Social Science Road
+dairy_gate,central_cafeteria,164.1,TSC Access Road
+social_science_building,medical_centre,128.2,Medical Centre Road
+medical_centre,central_mosque,98.4,Central Mosque Avenue
+central_cafeteria,zahir_raihan_auditorium,157.8,Cultural Avenue
+shaheed_minar,new_arts_building,95.2,New Arts Avenue
+shaheed_minar,central_library,187.6,Library Road
+shaheed_minar,gymnasium_field,217.6,Gymnasium Road
+new_arts_building,chourangi_mor,163.2,Arts-Chourangi Link
+central_library,chourangi_mor,237.6,Library-Chourangi Road
+central_library,cse_building,300.7,Science Complex Road
+cse_building,gymnasium_field,164.7,South Field Link
+gymnasium_field,zahir_raihan_auditorium,232.3,Auditorium South Road
+chourangi_mor,tarasankar_mor,265.8,Tarasankar Avenue
+chourangi_mor,pritilata_hall,508.8,Female Hall East Avenue
+pritilata_hall,jahanara_imam_hall,130.6,Female Hall Corridor
+tarasankar_mor,salam_barkat_hall,61.3,Salam-Barkat Link
+tarasankar_mor,bangabandhu_hall,107.6,Bangabandhu Hall Link
+tarasankar_mor,fazilatunnesa_hall,92.3,Fazilatunnesa Hall Road
+tarasankar_mor,al_beruni_hall,450.1,Al-Beruni Road
+tarasankar_mor,bottola,810.4,Bottola Main Road
+bangabandhu_hall,rafiq_jabbar_hall,452.6,West Hall Road
+rafiq_jabbar_hall,bottola,571.0,Bottola South Connector
+fazilatunnesa_hall,bottola,665.9,Bottola North Connector
+al_beruni_hall,old_arts_building,230.8,Old Arts Avenue
+old_arts_building,bishmile_gate,1229.0,Bishmile Highway Link
+jahanara_imam_hall,bishmile_gate,1288.1,East North Campus Road
+prantik_gate,mmh_hall,77.2,MMH Hall Road
+prantik_gate,gymnasium_field,765.1,Prantik-Gym Link Road
+mmh_hall,zahir_raihan_auditorium,658.3,MMH-Auditorium Ring Road
+prantik_gate,dairy_gate,681.1,Dhaka-Aricha Access Way

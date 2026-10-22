@@ -1,0 +1,9 @@
+# Build output
+target/
+
+# Runtime data created by the application (sample data lives in src/main/resources/sample)
+data/
+
+# JVM crash logs
+hs_err_pid*.log
+replay_pid*.log

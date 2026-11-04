@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -64,6 +65,103 @@ class RideServiceTest {
         assertEquals(RideStatus.MATCHED, second.getStatus());
         assertTrue(!second.getRickshawId().equals("JU-RICK-102"));
         assertTrue(service.getPendingInOrder().isEmpty());
+    }
+
+    @Test
+    void passengerSubmissionOffersNearestDriverAndOnlyThatDriverCanAccept() throws Exception {
+        RideService service = TestApp.start(dir);
+        RideRequest ride = service.submitRideRequest(
+                "Rafiq", PassengerType.STUDENT, "bottola", "dairy_gate");
+
+        assertEquals(RideStatus.OFFERED, ride.getStatus());
+        assertEquals("JU-RICK-102", ride.getRickshawId());
+        assertFalse(service.getRickshaw("JU-RICK-102").isAvailable());
+        assertEquals(1, service.getAssignedRequests("JU-RICK-102").size());
+        assertTrue(service.getAssignedRequests("JU-RICK-101").isEmpty());
+        assertThrows(IllegalStateException.class, () -> service.acceptRideRequest(ride.getId(), "JU-RICK-101"));
+
+        service.acceptRideRequest(ride.getId(), "JU-RICK-102");
+        assertEquals(RideStatus.MATCHED, ride.getStatus());
+        assertThrows(IllegalStateException.class, () -> service.acceptRideRequest(ride.getId(), "JU-RICK-102"));
+        assertTrue(service.getAssignedRequests("JU-RICK-102").isEmpty());
+        assertTrue(service.getRideUpdates(ride.getId()).stream().anyMatch(update -> update.contains("accepted")));
+    }
+
+    @Test
+    void rejectionOffersNextNearestAndNeverRetriesARejectingDriverAfterRestart() throws Exception {
+        RideService service = TestApp.start(dir);
+        RideRequest ride = service.submitRideRequest(
+                "Rafiq", PassengerType.STUDENT, "bottola", "dairy_gate");
+        assertEquals("JU-RICK-102", ride.getRickshawId());
+
+        service.rejectRideRequest(ride.getId(), "JU-RICK-102");
+        assertEquals(RideStatus.OFFERED, ride.getStatus());
+        assertEquals("JU-RICK-103", ride.getRickshawId());
+        assertTrue(service.getAssignedRequests("JU-RICK-102").isEmpty());
+        assertTrue(ride.getRejectedRickshawIds().contains("JU-RICK-102"));
+
+        RideService restarted = TestApp.start(dir);
+        RideRequest restored = restarted.getRide(ride.getId());
+        assertEquals(RideStatus.OFFERED, restored.getStatus());
+        assertEquals("JU-RICK-103", restored.getRickshawId());
+        assertTrue(restored.getRejectedRickshawIds().contains("JU-RICK-102"));
+
+        restarted.rejectRideRequest(restored.getId(), "JU-RICK-103");
+        assertFalse(List.of("JU-RICK-102", "JU-RICK-103").contains(restored.getRickshawId()));
+        assertEquals(2, restored.getRejectedRickshawIds().size());
+        assertTrue(restarted.getRideUpdates(restored.getId()).stream()
+                .anyMatch(update -> update.contains("Finding the next suitable driver")));
+    }
+
+    @Test
+    void rejectingEveryAvailableDriverEndsWithNoDriverAvailable() throws Exception {
+        RideService service = TestApp.start(dir);
+        RideRequest ride = service.submitRideRequest(
+                "Rafiq", PassengerType.STUDENT, "bottola", "dairy_gate");
+
+        for (int attempt = 0; attempt < 5; attempt++) {
+            assertEquals(RideStatus.OFFERED, ride.getStatus());
+            String assignedDriver = ride.getRickshawId();
+            service.rejectRideRequest(ride.getId(), assignedDriver);
+            assertTrue(ride.getRejectedRickshawIds().contains(assignedDriver));
+            assertFalse(service.getAssignedRequests(assignedDriver).contains(ride));
+        }
+
+        assertEquals(RideStatus.NO_DRIVER_AVAILABLE, ride.getStatus());
+        assertEquals(5, ride.getRejectedRickshawIds().size());
+        assertEquals("", ride.getRickshawId());
+        assertTrue(service.getRideUpdates(ride.getId()).stream()
+                .anyMatch(update -> update.contains("No suitable driver is available")));
+    }
+
+    @Test
+    void passengerSubmissionReportsWhenEveryDriverIsBusy() throws Exception {
+        RideService service = TestApp.start(dir);
+        for (int i = 0; i < 5; i++) {
+            service.createRequest("Legacy " + i, PassengerType.STUDENT, "bottola", "dairy_gate");
+            service.matchNextRequest();
+        }
+
+        RideRequest ride = service.submitRideRequest(
+                "Waiting", PassengerType.STUDENT, "bottola", "dairy_gate");
+        assertEquals(RideStatus.NO_DRIVER_AVAILABLE, ride.getStatus());
+        assertTrue(ride.getRickshawId().isEmpty());
+        assertTrue(service.getRideUpdates(ride.getId()).stream()
+                .anyMatch(update -> update.contains("No suitable driver is available")));
+    }
+
+    @Test
+    void offlineDriversAreSkippedWhenOfferingARequest() throws Exception {
+        RideService service = TestApp.start(dir);
+        service.setDriverOnline("JU-RICK-102", false);
+
+        RideRequest ride = service.submitRideRequest(
+                "Rafiq", PassengerType.STUDENT, "bottola", "dairy_gate");
+
+        assertEquals("JU-RICK-103", ride.getRickshawId());
+        assertTrue(service.isDriverOnline("JU-RICK-103"));
+        assertFalse(service.isDriverOnline("JU-RICK-102"));
+        assertThrows(IllegalStateException.class, () -> service.setDriverOnline("JU-RICK-103", false));
     }
 
     @Test

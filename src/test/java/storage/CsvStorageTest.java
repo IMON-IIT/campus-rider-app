@@ -52,6 +52,20 @@ class CsvStorageTest {
     }
 
     @Test
+    void malformedPersistedTripStateIsSkippedAndBackedUp() throws Exception {
+        TestApp.start(dir);
+        Files.writeString(dir.resolve("rickshaws.csv"), String.join("\n",
+                "id,driverName,locationId,status,totalSeats,availableSeats,activeTrip,destinationId,itinerary",
+                "JU-RICK-999,Driver,dairy_gate,BUSY,4,4,true,,"));
+        String original = Files.readString(dir.resolve("rickshaws.csv"));
+
+        RideService service = TestApp.start(dir);
+
+        assertTrue(service.getRickshaws().isEmpty());
+        assertEquals(original, Files.readString(dir.resolve("rickshaws.csv.bak")));
+    }
+
+    @Test
     void emptyLocationsFileFallsBackToSampleWithoutOverwritingIt() throws Exception {
         Files.createDirectories(dir);
         Files.writeString(dir.resolve("locations.csv"), "");

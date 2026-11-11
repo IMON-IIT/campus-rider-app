@@ -68,7 +68,7 @@ public class DriverDashboard extends JFrame {
     private final GoogleMapsPanel googleMapsPanel;
     private final JTabbedPane mapTabs = new JTabbedPane();
     private final JToggleButton onlineToggle = new JToggleButton("Go Online");
-    private final JLabel onlineStatus = new JLabel("Offline — demo setting only");
+    private final JLabel onlineStatus = new JLabel("Offline");
     private final JButton acceptButton = new JButton("Accept");
     private final JButton rejectButton = new JButton("Reject");
     private final JButton confirmPickupButton = new JButton("Confirm Pickup / Passenger Onboard");
@@ -122,8 +122,9 @@ public class DriverDashboard extends JFrame {
         DashboardStyle.styleList(currentRideList);
         campusMapPanel = new CampusMapPanel(routeService);
         googleMapsPanel = new GoogleMapsPanel(routeService);
-        mapTabs.addTab("Live Campus Simulation", campusMapPanel);
-        mapTabs.addTab("Google Maps (optional)", googleMapsPanel);
+        mapTabs.addTab("Google Maps", googleMapsPanel);
+        mapTabs.addTab("Campus Graph (offline)", campusMapPanel);
+        mapTabs.setSelectedIndex(GoogleMapsPanel.isConfigured() ? 0 : 1);
         if (driver != null) {
             selectLocation(currentLocationBox, driver.getLocationId());
         }
@@ -212,6 +213,9 @@ public class DriverDashboard extends JFrame {
 
         JPanel utilityButtons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 2));
         utilityButtons.setOpaque(false);
+        DashboardStyle.styleButton(updateSeatsButton, DashboardStyle.ButtonType.SECONDARY);
+        updateSeatsButton.addActionListener(event -> updateSeats());
+        utilityButtons.add(updateSeatsButton);
         if (additionalSessionAction != null) {
             JButton anotherSession = new JButton("Open Another Session");
             DashboardStyle.styleButton(anotherSession, DashboardStyle.ButtonType.SECONDARY);
@@ -252,20 +256,27 @@ public class DriverDashboard extends JFrame {
     }
 
     private JPanel buildMainContent() {
-        JPanel main = new JPanel(new BorderLayout(10, 10));
-        main.setOpaque(false);
-        JSplitPane leftColumn = new JSplitPane(JSplitPane.VERTICAL_SPLIT,
-                buildTripControls(), buildRequestsSection());
-        leftColumn.setResizeWeight(0.40);
-        leftColumn.setContinuousLayout(true);
-        leftColumn.setOneTouchExpandable(true);
-        leftColumn.setBorder(null);
+        JPanel sidebar = new JPanel(new BorderLayout(10, 10));
+        sidebar.setOpaque(false);
+        sidebar.add(buildTripControls(), BorderLayout.NORTH);
+        JSplitPane bookings = new JSplitPane(JSplitPane.VERTICAL_SPLIT,
+                buildRequestsSection(), buildActiveBookingSection());
+        bookings.setResizeWeight(0.52);
+        bookings.setContinuousLayout(true);
+        bookings.setOneTouchExpandable(true);
+        bookings.setBorder(null);
+        sidebar.add(bookings, BorderLayout.CENTER);
+
         JSplitPane workspace = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT,
-                leftColumn, buildCurrentRideSection());
-        workspace.setResizeWeight(0.36);
+                sidebar, buildCurrentRideSection());
+        workspace.setResizeWeight(0.38);
         workspace.setContinuousLayout(true);
         workspace.setOneTouchExpandable(true);
+        workspace.setDividerSize(10);
         workspace.setBorder(null);
+        workspace.setPreferredSize(new Dimension(1180, 650));
+        JPanel main = new JPanel(new BorderLayout(10, 10));
+        main.setOpaque(false);
         main.add(workspace, BorderLayout.CENTER);
         return main;
     }
@@ -289,15 +300,12 @@ public class DriverDashboard extends JFrame {
         section.add(seatAvailabilityLabel, c);
         startTripButton.addActionListener(event -> startTrip());
         endTripButton.addActionListener(event -> endTrip());
-        updateSeatsButton.addActionListener(event -> updateSeats());
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
         actions.setOpaque(false);
         actions.add(startTripButton);
         actions.add(endTripButton);
-        actions.add(updateSeatsButton);
         DashboardStyle.styleButton(startTripButton, DashboardStyle.ButtonType.PRIMARY);
         DashboardStyle.styleButton(endTripButton, DashboardStyle.ButtonType.DANGER);
-        DashboardStyle.styleButton(updateSeatsButton, DashboardStyle.ButtonType.SECONDARY);
         c.gridx = 1;
         c.gridy = 5;
         c.gridwidth = 2;
@@ -336,11 +344,17 @@ public class DriverDashboard extends JFrame {
                             + "<br>Requested: " + ride.getRequestedSeats() + " seat(s) · Available: "
                             + escapeHtml(availableSeatsFor(ride)) + "</html>");
                 }
-                label.setBorder(BorderFactory.createEmptyBorder(7, 9, 7, 9));
+                label.setOpaque(true);
+                label.setBackground(isSelected ? new Color(255, 242, 204) : Color.WHITE);
+                label.setForeground(NAVY);
+                label.setBorder(BorderFactory.createCompoundBorder(
+                        BorderFactory.createLineBorder(isSelected
+                                ? new Color(224, 172, 49) : DashboardStyle.BORDER),
+                        BorderFactory.createEmptyBorder(9, 10, 9, 10)));
                 return label;
             }
         });
-        requestList.setFixedCellHeight(68);
+        requestList.setFixedCellHeight(74);
         JScrollPane requestScroll = new JScrollPane(requestList);
         DashboardStyle.styleScrollPane(requestScroll);
         section.add(requestScroll, BorderLayout.CENTER);
@@ -361,8 +375,8 @@ public class DriverDashboard extends JFrame {
         return section;
     }
 
-    private JPanel buildCurrentRideSection() {
-        JPanel section = createCard("Passenger bookings and live map");
+    private JPanel buildActiveBookingSection() {
+        JPanel section = createCard("Passenger bookings");
         section.setLayout(new BorderLayout(8, 8));
         currentRideList.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
         DashboardStyle.styleButton(confirmPickupButton, DashboardStyle.ButtonType.PRIMARY);
@@ -388,27 +402,33 @@ public class DriverDashboard extends JFrame {
             }
         });
         currentRideList.setFixedCellHeight(62);
-        JPanel rides = new JPanel(new BorderLayout(4, 4));
-        rides.setOpaque(false);
-        rides.setPreferredSize(new Dimension(270, 200));
         JScrollPane ridesScroll = new JScrollPane(currentRideList);
         DashboardStyle.styleScrollPane(ridesScroll);
-        JPanel rideListArea = new JPanel(new BorderLayout(0, 5));
+        JPanel rideListArea = new JPanel(new BorderLayout(0, 6));
         rideListArea.setOpaque(false);
         rideListArea.add(currentRideNote, BorderLayout.NORTH);
         rideListArea.add(ridesScroll, BorderLayout.CENTER);
-        rides.add(rideListArea, BorderLayout.CENTER);
         confirmPickupButton.setEnabled(false);
         completePassengerRideButton.setEnabled(false);
-        JPanel rideActions = new JPanel(new java.awt.GridLayout(0, 1, 0, 5));
+        JPanel rideActions = new JPanel(new java.awt.GridLayout(1, 0, 6, 0));
         rideActions.setOpaque(false);
         rideActions.add(confirmPickupButton);
         rideActions.add(completePassengerRideButton);
-        rides.add(rideActions, BorderLayout.SOUTH);
-        section.add(rides, BorderLayout.WEST);
+        section.add(rideListArea, BorderLayout.CENTER);
+        section.add(rideActions, BorderLayout.SOUTH);
+        return section;
+    }
+
+    private JPanel buildCurrentRideSection() {
+        JPanel section = createCard("Live trip map");
+        section.setLayout(new BorderLayout(8, 8));
+        JLabel mapNote = new JLabel("Schematic campus road graph · not GPS");
+        mapNote.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
+        mapNote.setForeground(MUTED);
+        section.add(mapNote, BorderLayout.NORTH);
         mapTabs.setMinimumSize(new Dimension(420, 320));
+        mapTabs.setPreferredSize(new Dimension(760, 600));
         section.add(mapTabs, BorderLayout.CENTER);
-        section.setPreferredSize(new Dimension(720, 520));
         return section;
     }
 
@@ -632,7 +652,7 @@ public class DriverDashboard extends JFrame {
                 : assigned.size() + (assigned.size() == 1
                 ? " incoming request — select it to Accept or Reject."
                 : " incoming requests — select one to Accept or Reject."));
-        requestNote.setForeground(assigned.isEmpty() ? MUTED : new Color(0, 110, 40));
+        requestNote.setForeground(assigned.isEmpty() ? MUTED : new Color(145, 94, 12));
         List<Integer> displayedIds = new java.util.ArrayList<>();
         for (int i = 0; i < requestsModel.size(); i++) {
             displayedIds.add(requestsModel.get(i).getId());

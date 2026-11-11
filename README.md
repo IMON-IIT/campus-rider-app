@@ -21,10 +21,10 @@ source code.
 | Account passwords                     | Salted PBKDF2 (JDK cryptography)      | `src/main/java/service/AccountService.java`   |
 | Saving and loading                    | CSV text files                        | `src/main/java/storage/CsvStorage.java`       |
 
-No database or web server is used. Both dashboards default to the local campus
-graph visualization, which shows the simulated rickshaw position and route.
-Google Maps visualization is an optional embedded browser component; JUnit is
-used only for tests.
+No database or web server is used. Both dashboards use Google Maps as the
+default map when a Google API key is configured; otherwise they default to the
+local campus graph visualization, which shows the simulated rickshaw position
+and route. JUnit is used only for tests.
 
 Passenger and driver dashboards opened with **Open Another Session** share one
 in-memory service and CSV data directory. The application does not currently
@@ -53,9 +53,9 @@ mvn -DskipTests package
 java -Dcampusride.dataDir=C:\campus-rider-data -cp "target\campus-ride.jar;target\dependency\*" Main
 ```
 
-The optional Google Maps tab uses JavaFX WebView and the Google Maps JavaScript API.
-To enable it in Windows PowerShell, configure a Google API key outside the
-repository and start the application:
+The Google Maps tab uses JavaFX WebView and the Google Maps JavaScript API.
+To enable and open it by default in Windows PowerShell, configure a Google API
+key outside the repository and start the application:
 
 ```powershell
 $env:GOOGLE_MAPS_API_KEY = "your-restricted-key"
@@ -66,7 +66,9 @@ Enable the Maps JavaScript API and Geocoding API with billing for that key.
 Restrict the key to those APIs and monitor its usage. A Maps JavaScript key is
 sent to Google by the embedded browser and is visible at runtime; it is not a
 server secret. Do not commit it. With no key, the optional tab shows an explicit configuration message instead
-of a pretend map. The local campus simulation remains available without a key.
+of a pretend map, and the offline campus graph is selected automatically. The
+Google map geocodes campus location names and may not precisely match the
+application's schematic campus graph or roads.
 
 On start the console prints the data folder that is being used, for example:
 
@@ -86,7 +88,12 @@ Loaded 25 locations, 33 roads, 5 rickshaws, 0 rides.
 3. Passwords are stored as salted PBKDF2 hashes in `data/passengers.csv` and
    `data/drivers.csv`, never as plain text. Driver rickshaw details are also
    saved in `data/rickshaws.csv` so the existing matching service can use them.
-4. A driver dashboard is bound to the logged-in driver's rickshaw. Use *Open
+4. If you forget your password, choose *Forgot password?* and enter the
+   account's registered full name and mobile number (or local account ID),
+   then choose a new password. This offline demonstration only matches those
+   locally stored details; it does not send an OTP or verify ownership of a
+   mobile number. It is not production-grade identity verification.
+5. A driver dashboard is bound to the logged-in driver's rickshaw. Use *Open
    Another Session* to open a second account while leaving this dashboard and
    its simulation active. Active requests or passenger rides must be resolved
    before logging that driver out.
@@ -121,7 +128,9 @@ Loaded 25 locations, 33 roads, 5 rickshaws, 0 rides.
    requires a key and network access; it geocodes place names, which may not
    match the exact campus graph nodes or roads. The campus CSV does not store
    latitude/longitude, so the graph simulation is the reliable route and
-   movement view.
+   movement view. Passenger ride cards show a demonstration fare estimate of
+   ৳10 per kilometre using the Dijkstra shortest-path graph distance; no payment
+   is collected.
 8. Passengers can cancel before boarding; reserved seats and itinerary stops
    are then released. A driver can end a trip after all bookings are completed
    or cancelled.

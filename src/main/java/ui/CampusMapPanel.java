@@ -43,6 +43,7 @@ public class CampusMapPanel extends JPanel {
     private String destinationId = "";
     private String status = "Trip status unavailable";
     private RideService.TripMovement movement;
+    private List<String> availableVehicleLocationIds = List.of();
 
     public CampusMapPanel(RouteService routeService) {
         super(new BorderLayout(0, 4));
@@ -125,6 +126,18 @@ public class CampusMapPanel extends JPanel {
         return tripSummary.getText();
     }
 
+    public void setAvailableVehicleLocationIds(List<String> locationIds) {
+        List<String> snapshot = locationIds == null ? List.of() : List.copyOf(locationIds);
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingUtilities.invokeLater(() -> setAvailableVehicleLocationIds(snapshot));
+            return;
+        }
+        availableVehicleLocationIds = snapshot.stream()
+                .filter(routeService::isValidLocation)
+                .toList();
+        repaint();
+    }
+
     /** Returns the animated marker position in component coordinates. */
     public Point getRickshawPosition() {
         Map<String, Point> points = layout(routeService.getLocationsSorted());
@@ -157,6 +170,7 @@ public class CampusMapPanel extends JPanel {
             drawRoute(g, points);
             drawLocations(g, locations, points);
             drawStopMarkers(g, points);
+            drawAvailableVehicles(g, points);
             drawRickshaw(g, points);
             drawLegend(g);
         } finally {
@@ -282,6 +296,26 @@ public class CampusMapPanel extends JPanel {
         g.setTransform(original);
     }
 
+    private void drawAvailableVehicles(Graphics2D g, Map<String, Point> points) {
+        g.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 9));
+        Map<String, Integer> offsets = new HashMap<>();
+        for (String locationId : availableVehicleLocationIds) {
+            Point point = points.get(locationId);
+            if (point == null) {
+                continue;
+            }
+            int offset = offsets.merge(locationId, 1, Integer::sum) - 1;
+            int x = point.x + 10 + offset / 2 * 15;
+            int y = point.y - 20 - offset % 2 * 14;
+            g.setColor(Color.WHITE);
+            g.fillRoundRect(x - 1, y - 1, 21, 18, 7, 7);
+            g.setColor(new Color(43, 102, 65));
+            g.fillRoundRect(x, y, 19, 16, 6, 6);
+            g.setColor(Color.WHITE);
+            g.drawString("R", x + 7, y + 11);
+        }
+    }
+
     private void drawRickshawIcon(Graphics2D g) {
         g.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
         g.setColor(new Color(31, 119, 89));
@@ -365,7 +399,7 @@ public class CampusMapPanel extends JPanel {
     private void drawLegend(Graphics2D g) {
         g.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 10));
         g.setColor(ROUTE);
-        g.drawString("Schematic campus graph • not GPS  |  Rickshaw  |  P Pickup  |  D Destination",
+        g.drawString("Schematic campus graph • not GPS  |  Rickshaw  |  R Available  |  P Pickup  |  D Destination",
                 10, getHeight() - 10);
     }
 

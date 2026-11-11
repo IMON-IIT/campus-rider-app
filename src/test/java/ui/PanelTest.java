@@ -50,6 +50,15 @@ class PanelTest {
     @TempDir
     Path dir;
 
+    @Test
+    void resetPasswordConfirmationMustMatch() {
+        assertTrue(LoginWindow.passwordsMatch(
+                "NewPassword9!".toCharArray(), "NewPassword9!".toCharArray()));
+        assertFalse(LoginWindow.passwordsMatch(
+                "NewPassword9!".toCharArray(), "Different9!".toCharArray()));
+        assertFalse(LoginWindow.passwordsMatch(null, "NewPassword9!".toCharArray()));
+    }
+
     @AfterEach
     void closeSwingWindows() throws Exception {
         SwingUtilities.invokeAndWait(() -> {

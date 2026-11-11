@@ -40,6 +40,11 @@ public class GoogleMapsPanel extends JPanel {
         this(routeService, System.getenv(API_KEY_ENV));
     }
 
+    public static boolean isConfigured() {
+        String apiKey = System.getenv(API_KEY_ENV);
+        return apiKey != null && !apiKey.isBlank();
+    }
+
     GoogleMapsPanel(RouteService routeService, String apiKey) {
         super(new BorderLayout());
         this.routeService = routeService;

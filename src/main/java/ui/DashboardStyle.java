@@ -6,6 +6,7 @@ import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JScrollPane;
+import javax.swing.event.ChangeListener;
 import javax.swing.JTextArea;
 import javax.swing.border.TitledBorder;
 import java.awt.Color;
@@ -14,16 +15,16 @@ import java.awt.Font;
 
 /** Shared Swing styling for the passenger and driver dashboards. */
 final class DashboardStyle {
-    static final Color PAGE = new Color(244, 247, 251);
+    static final Color PAGE = new Color(246, 246, 246);
     static final Color SURFACE = Color.WHITE;
-    static final Color INK = new Color(28, 48, 74);
-    static final Color MUTED = new Color(96, 111, 130);
-    static final Color ACCENT = new Color(31, 119, 89);
-    static final Color ACCENT_SOFT = new Color(229, 244, 237);
-    static final Color DANGER = new Color(177, 55, 59);
-    static final Color DANGER_SOFT = new Color(252, 235, 235);
-    static final Color BORDER = new Color(220, 226, 233);
-    static final Color SUBTLE = new Color(247, 249, 252);
+    static final Color INK = new Color(20, 20, 20);
+    static final Color MUTED = new Color(112, 112, 112);
+    static final Color ACCENT = new Color(20, 20, 20);
+    static final Color ACCENT_SOFT = new Color(231, 244, 235);
+    static final Color DANGER = new Color(176, 44, 44);
+    static final Color DANGER_SOFT = new Color(252, 237, 237);
+    static final Color BORDER = new Color(225, 225, 225);
+    static final Color SUBTLE = new Color(246, 246, 246);
 
     private DashboardStyle() {
     }
@@ -34,22 +35,31 @@ final class DashboardStyle {
         button.setOpaque(true);
         button.setContentAreaFilled(true);
         button.setBorderPainted(false);
-        button.setBorder(BorderFactory.createEmptyBorder(9, 14, 9, 14));
+        button.setBorder(BorderFactory.createEmptyBorder(10, 16, 10, 16));
         button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        switch (type) {
-            case PRIMARY -> {
-                button.setBackground(ACCENT);
-                button.setForeground(Color.WHITE);
-            }
-            case DANGER -> {
-                button.setBackground(DANGER_SOFT);
-                button.setForeground(DANGER);
-            }
-            case SECONDARY -> {
-                button.setBackground(SUBTLE);
-                button.setForeground(INK);
-            }
+        button.setRolloverEnabled(true);
+        button.putClientProperty("campusride.buttonType", type);
+        button.setBackground(buttonBackground(type, false, false));
+        button.setForeground(type == ButtonType.PRIMARY ? Color.WHITE
+                : type == ButtonType.DANGER ? DANGER : INK);
+        if (!Boolean.TRUE.equals(button.getClientProperty("campusride.hoverListenerInstalled"))) {
+            ChangeListener hoverListener = event -> {
+                ButtonType currentType = (ButtonType) button.getClientProperty("campusride.buttonType");
+                boolean active = button.isEnabled() && (button.getModel().isRollover()
+                        || button.getModel().isPressed());
+                button.setBackground(buttonBackground(currentType, active, button.isSelected()));
+            };
+            button.getModel().addChangeListener(hoverListener);
+            button.putClientProperty("campusride.hoverListenerInstalled", Boolean.TRUE);
         }
+    }
+
+    private static Color buttonBackground(ButtonType type, boolean hovered, boolean selected) {
+        return switch (type) {
+            case PRIMARY -> hovered ? new Color(56, 56, 56) : ACCENT;
+            case DANGER -> hovered ? new Color(247, 220, 220) : DANGER_SOFT;
+            case SECONDARY -> hovered || selected ? new Color(232, 232, 232) : SUBTLE;
+        };
     }
 
     static TitledBorder cardBorder(String title) {
@@ -63,12 +73,12 @@ final class DashboardStyle {
     }
 
     static void styleInput(JComponent input) {
-        input.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 13));
+        input.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
         input.setBackground(SURFACE);
         input.setForeground(INK);
         input.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(BORDER),
-                BorderFactory.createEmptyBorder(5, 8, 5, 8)));
+                BorderFactory.createEmptyBorder(8, 10, 8, 10)));
     }
 
     static void styleList(JList<?> list) {

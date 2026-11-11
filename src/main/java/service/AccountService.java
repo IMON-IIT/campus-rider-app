@@ -155,6 +155,52 @@ public class AccountService {
         return identity;
     }
 
+    public synchronized AccountIdentity verifyPasswordResetAccount(String fullName, String accountIdentifier) {
+        String name = fullName == null ? "" : fullName.trim();
+        String identifier = normalizeMobile(accountIdentifier);
+        PassengerAccount passenger = findPassengerForReset(identifier);
+        if (passenger != null && passenger.getFullName().equalsIgnoreCase(name)) {
+            return new AccountIdentity(passenger.getMobileNumber(), passenger.getFullName(), AccountRole.PASSENGER);
+        }
+        DriverAccount driver = findDriverForReset(identifier);
+        if (driver != null && driver.getFullName().equalsIgnoreCase(name)) {
+            return new AccountIdentity(driver.getMobileNumber(), driver.getFullName(), AccountRole.DRIVER);
+        }
+        throw new IllegalArgumentException(
+                "The registered name and mobile number/account ID did not match. Check the details and try again.");
+    }
+
+    public synchronized void resetPassword(String fullName, String accountIdentifier, char[] newPassword)
+            throws IOException {
+        validateResetPassword(newPassword);
+        AccountIdentity verified = verifyPasswordResetAccount(fullName, accountIdentifier);
+        String newHash = hashPassword(newPassword);
+        if (verified.role() == AccountRole.PASSENGER) {
+            PassengerAccount current = passengers.get(verified.id());
+            PassengerAccount updated = new PassengerAccount(
+                    current.getFullName(), current.getMobileNumber(), newHash);
+            passengers.put(verified.id(), updated);
+            try {
+                storage.savePassengerAccounts(new ArrayList<>(passengers.values()));
+            } catch (IOException e) {
+                passengers.put(verified.id(), current);
+                throw e;
+            }
+        } else {
+            DriverAccount current = drivers.get(verified.id());
+            DriverAccount updated = new DriverAccount(current.getFullName(), current.getMobileNumber(), newHash,
+                    current.getRickshawId(), current.getInitialLocationId(), current.getDestinationId(),
+                    current.getTotalSeats(), current.getAvailableSeats());
+            drivers.put(verified.id(), updated);
+            try {
+                storage.saveDriverAccounts(new ArrayList<>(drivers.values()));
+            } catch (IOException e) {
+                drivers.put(verified.id(), current);
+                throw e;
+            }
+        }
+    }
+
     public synchronized void clearActiveSession() {
         preferences.remove("session_token");
         preferences.remove("session_account_id");
@@ -308,6 +354,52 @@ public class AccountService {
         return passengers.containsKey(mobile) || drivers.containsKey(mobile);
     }
 
+    private PassengerAccount findPassengerForReset(String identifier) {
+        PassengerAccount account = passengers.get(identifier);
+        if (account != null || !isLocalAccountId(identifier)) {
+            return account;
+        }
+        return passengers.values().stream()
+                .filter(candidate -> candidate.getMobileNumber().equalsIgnoreCase(identifier))
+                .findFirst().orElse(null);
+    }
+
+    private DriverAccount findDriverForReset(String identifier) {
+        DriverAccount account = drivers.get(identifier);
+        if (account != null || !isLocalAccountId(identifier)) {
+            return account;
+        }
+        return drivers.values().stream()
+                .filter(candidate -> candidate.getMobileNumber().equalsIgnoreCase(identifier))
+                .findFirst().orElse(null);
+    }
+
+    private static void validateResetPassword(char[] password) {
+        if (password == null || password.length == 0) {
+            throw new IllegalArgumentException("Enter a new password.");
+        }
+        if (password.length < 10 || password.length > 128) {
+            throw new IllegalArgumentException("Use 10 to 128 characters for your new password.");
+        }
+        boolean lowercase = false;
+        boolean uppercase = false;
+        boolean digit = false;
+        boolean symbol = false;
+        for (char character : password) {
+            if (Character.isISOControl(character)) {
+                throw new IllegalArgumentException("Password cannot contain control characters.");
+            }
+            lowercase |= Character.isLowerCase(character);
+            uppercase |= Character.isUpperCase(character);
+            digit |= Character.isDigit(character);
+            symbol |= !Character.isLetterOrDigit(character);
+        }
+        if (!lowercase || !uppercase || !digit || !symbol) {
+            throw new IllegalArgumentException(
+                    "Include an uppercase letter, a lowercase letter, a number, and a symbol.");
+        }
+    }
+
     private static String validateName(String value) {
         String name = requireText(value, "Enter your full name.");
         if (name.length() > 100 || name.chars().anyMatch(Character::isISOControl)) {
@@ -324,12 +416,17 @@ public class AccountService {
         return mobile;
     }
 
+    private static boolean isLocalAccountId(String value) {
+        return value != null
+                && LOCAL_ACCOUNT_ID_PATTERN.matcher(value.toUpperCase(java.util.Locale.ROOT)).matches();
+    }
+
     private static String normalizeMobile(String value) {
         if (value == null) {
             return "";
         }
         String trimmed = value.trim();
-        if (LOCAL_ACCOUNT_ID_PATTERN.matcher(trimmed).matches()) {
+        if (isLocalAccountId(trimmed)) {
             return trimmed;
         }
         String mobile = trimmed.replaceAll("[\\s()-]", "");

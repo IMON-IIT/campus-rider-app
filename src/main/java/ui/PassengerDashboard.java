@@ -25,6 +25,7 @@ import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.JSpinner;
 import javax.swing.SpinnerNumberModel;
+import javax.swing.JSplitPane;
 import java.awt.Component;
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -36,6 +37,7 @@ import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.util.List;
 import java.util.Locale;
+import java.util.OptionalLong;
 import java.util.concurrent.ExecutionException;
 
 /** Passenger-facing route finder, request form, and rickshaw availability view. */
@@ -50,7 +52,7 @@ public class PassengerDashboard extends JFrame {
     private final JTextField passengerNameField = new JTextField("Demo Passenger", 18);
     private final JComboBox<Location> pickupBox;
     private final JComboBox<Location> destinationBox;
-    private final JButton requestRideButton = createButton("Send Ride Request", true);
+    private final JButton requestRideButton = createButton("Request Shared Ride", true);
     private final JButton cancelRideButton = createButton("Cancel Booking", false);
     private final JSpinner seatsSpinner = new JSpinner(new SpinnerNumberModel(1, 1, 20, 1));
     private final JTextArea routeArea = new JTextArea(5, 40);
@@ -58,6 +60,7 @@ public class PassengerDashboard extends JFrame {
     private final JLabel requestStatus = new JLabel("Request status: Not submitted");
     private final JLabel bookingDetails = new JLabel("Driver and booking details will appear here.");
     private final JLabel selectedTripSeats = new JLabel("Select a rickshaw to view its seat availability.");
+    private final JLabel selectedRouteEstimate = new JLabel();
     private final DefaultListModel<RideMatchingService.TripMatch> rickshawModel = new DefaultListModel<>();
     private final JList<RideMatchingService.TripMatch> rickshawList = new JList<>(rickshawModel);
     private final JLabel availableCount = new JLabel();
@@ -90,14 +93,15 @@ public class PassengerDashboard extends JFrame {
         this.additionalSessionAction = additionalSessionAction;
         this.campusMapPanel = new CampusMapPanel(routeService);
         this.googleMapsPanel = new GoogleMapsPanel(routeService);
-        mapTabs.addTab("Live Campus Simulation", campusMapPanel);
-        mapTabs.addTab("Google Maps (optional)", googleMapsPanel);
+        mapTabs.addTab("Google Maps", googleMapsPanel);
+        mapTabs.addTab("Campus Graph (offline)", campusMapPanel);
+        mapTabs.setSelectedIndex(GoogleMapsPanel.isConfigured() ? 0 : 1);
         if (passenger != null) {
             passengerNameField.setText(passenger.getFullName());
             passengerNameField.setEditable(false);
         }
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setMinimumSize(new Dimension(900, 700));
+        setMinimumSize(new Dimension(1080, 740));
 
         List<Location> locations = routeService.getLocationsSorted();
         Location[] choices = locations.toArray(new Location[0]);
@@ -142,7 +146,7 @@ public class PassengerDashboard extends JFrame {
             }
         });
         pack();
-        setSize(Math.max(getWidth(), 1040), Math.max(getHeight(), 780));
+        setSize(Math.max(getWidth(), 1240), Math.max(getHeight(), 820));
         setLocationRelativeTo(null);
     }
 
@@ -191,29 +195,39 @@ public class PassengerDashboard extends JFrame {
     }
 
     private JPanel buildMainContent() {
-        JPanel main = new JPanel(new GridBagLayout());
+        JPanel main = new JPanel(new BorderLayout(12, 12));
         main.setOpaque(false);
-        GridBagConstraints c = new GridBagConstraints();
-        c.gridx = 0;
-        c.gridy = 0;
-        c.weightx = 0.58;
-        c.weighty = 0.48;
-        c.fill = GridBagConstraints.BOTH;
-        c.insets = new Insets(0, 0, 12, 8);
-        main.add(buildTripCard(), c);
+        JPanel mapCard = createCard("Campus map");
+        mapCard.setLayout(new BorderLayout(8, 8));
+        JLabel mapNote = new JLabel("Schematic campus route simulation · vehicle positions are not GPS");
+        mapNote.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
+        mapNote.setForeground(MUTED);
+        mapCard.add(mapNote, BorderLayout.NORTH);
+        mapTabs.setMinimumSize(new Dimension(500, 360));
+        mapTabs.setPreferredSize(new Dimension(700, 500));
+        mapCard.add(mapTabs, BorderLayout.CENTER);
 
-        c.gridx = 1;
-        c.weightx = 0.42;
-        c.insets = new Insets(0, 8, 12, 0);
-        main.add(buildAvailabilityCard(), c);
+        JPanel bookingPanel = new JPanel();
+        bookingPanel.setOpaque(false);
+        bookingPanel.setLayout(new javax.swing.BoxLayout(bookingPanel, javax.swing.BoxLayout.Y_AXIS));
+        bookingPanel.add(buildTripCard());
+        bookingPanel.add(javax.swing.Box.createVerticalStrut(12));
+        bookingPanel.add(buildAvailabilityCard());
+        JScrollPane bookingScroll = new JScrollPane(bookingPanel);
+        bookingScroll.setBorder(null);
+        bookingScroll.getViewport().setOpaque(false);
+        bookingScroll.setOpaque(false);
+        bookingScroll.getVerticalScrollBar().setUnitIncrement(18);
+        bookingScroll.setPreferredSize(new Dimension(400, 500));
 
-        c.gridx = 0;
-        c.gridy = 1;
-        c.gridwidth = 2;
-        c.weightx = 1;
-        c.weighty = 0.52;
-        c.insets = new Insets(0, 0, 0, 0);
-        main.add(buildStatusCard(), c);
+        JSplitPane workspace = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, mapCard, bookingScroll);
+        workspace.setResizeWeight(0.65);
+        workspace.setContinuousLayout(true);
+        workspace.setOneTouchExpandable(true);
+        workspace.setDividerSize(10);
+        workspace.setBorder(null);
+        main.add(workspace, BorderLayout.CENTER);
+        main.add(buildStatusCard(), BorderLayout.SOUTH);
         return main;
     }
 
@@ -284,12 +298,10 @@ public class PassengerDashboard extends JFrame {
         updates.add(statusHeader, BorderLayout.NORTH);
         JScrollPane updatesScroll = new JScrollPane(rideStatusArea);
         DashboardStyle.styleScrollPane(updatesScroll);
-        updatesScroll.setPreferredSize(new Dimension(500, 76));
-        updatesScroll.setMinimumSize(new Dimension(250, 60));
+        updatesScroll.setPreferredSize(new Dimension(500, 64));
+        updatesScroll.setMinimumSize(new Dimension(250, 54));
         updates.add(updatesScroll, BorderLayout.CENTER);
-        mapTabs.setMinimumSize(new Dimension(320, 190));
         card.add(updates, BorderLayout.NORTH);
-        card.add(mapTabs, BorderLayout.CENTER);
         cancelRideButton.setEnabled(false);
         DashboardStyle.styleButton(cancelRideButton, DashboardStyle.ButtonType.DANGER);
         cancelRideButton.addActionListener(event -> cancelTrackedRide());
@@ -299,7 +311,7 @@ public class PassengerDashboard extends JFrame {
         card.add(actions, BorderLayout.SOUTH);
         mapTabs.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 12));
         mapTabs.setForeground(NAVY);
-        card.setPreferredSize(new Dimension(560, 420));
+        card.setPreferredSize(new Dimension(560, 145));
         return card;
     }
 
@@ -326,9 +338,16 @@ public class PassengerDashboard extends JFrame {
         availableCount.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
         availableCount.setForeground(NAVY);
         summary.add(availableCount, BorderLayout.WEST);
+        selectedRouteEstimate.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
+        selectedRouteEstimate.setForeground(ACCENT);
+        summary.add(selectedRouteEstimate, BorderLayout.CENTER);
         selectedTripSeats.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
         selectedTripSeats.setForeground(MUTED);
-        summary.add(selectedTripSeats, BorderLayout.SOUTH);
+        JPanel summaryDetails = new JPanel(new BorderLayout(0, 3));
+        summaryDetails.setOpaque(false);
+        summaryDetails.add(selectedRouteEstimate, BorderLayout.NORTH);
+        summaryDetails.add(selectedTripSeats, BorderLayout.SOUTH);
+        summary.add(summaryDetails, BorderLayout.SOUTH);
         rickshawList.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 13));
         rickshawList.setSelectionMode(javax.swing.ListSelectionModel.SINGLE_SELECTION);
         rickshawList.setCellRenderer(new DefaultListCellRenderer() {
@@ -339,20 +358,30 @@ public class PassengerDashboard extends JFrame {
                         list, value, index, selected, focus);
                 if (value instanceof RideMatchingService.TripMatch match) {
                     Rickshaw rickshaw = match.getRickshaw();
-                    label.setText("<html><b>" + escapeHtml(rickshaw.getDriverName()) + " · "
-                            + escapeHtml(rickshaw.getId()) + "</b><br>Seats: "
-                            + rickshaw.getAvailableSeats() + "/" + rickshaw.getTotalSeats() + " · "
+                    RideService.SeatAvailability seats = rideService.getSeatAvailability(rickshaw.getId());
+                    label.setText("<html><b>Shared rickshaw · "
+                            + escapeHtml(rickshaw.getDriverName()) + "</b><br>"
                             + escapeHtml(routeService.getLocationName(rickshaw.getLocationId()))
                             + " → " + escapeHtml(routeService.getLocationName(rickshaw.getDestinationId()))
-                            + "<br>Pickup " + String.format(Locale.ROOT, "%.0f m",
+                            + "<br>Rickshaw " + escapeHtml(rickshaw.getId()) + " · "
+                            + seats.availableSeats() + " seats available · "
+                            + seats.totalSeats() + " total"
+                            + " · Pickup " + String.format(Locale.ROOT, "%.0f m",
                             match.getDistanceToPickupMeters()) + " · Detour "
-                            + String.format(Locale.ROOT, "%.0f m", match.getExtraDistanceMeters()) + "</html>");
+                            + String.format(Locale.ROOT, "%.0f m", match.getExtraDistanceMeters())
+                            + "<br><b><font color='#1f7759'>" + estimateFareForDisplay()
+                            + "</font></b></html>");
                 }
-                label.setBorder(BorderFactory.createEmptyBorder(7, 9, 7, 9));
+                label.setOpaque(true);
+                label.setBackground(selected ? DashboardStyle.ACCENT_SOFT : Color.WHITE);
+                label.setForeground(NAVY);
+                label.setBorder(BorderFactory.createCompoundBorder(
+                        BorderFactory.createLineBorder(selected ? DashboardStyle.ACCENT : DashboardStyle.BORDER),
+                        BorderFactory.createEmptyBorder(10, 11, 10, 11)));
                 return label;
             }
         });
-        rickshawList.setFixedCellHeight(68);
+        rickshawList.setFixedCellHeight(90);
         rickshawList.addListSelectionListener(event -> {
             RideMatchingService.TripMatch selected = rickshawList.getSelectedValue();
             updateRequestButtonState();
@@ -368,9 +397,10 @@ public class PassengerDashboard extends JFrame {
         });
         JScrollPane list = new JScrollPane(rickshawList);
         DashboardStyle.styleScrollPane(list);
-        list.setPreferredSize(new Dimension(400, 150));
+        list.setPreferredSize(new Dimension(380, 240));
 
-        JLabel seatsNote = new JLabel("Only online rickshaws on active trips with compatible routes and enough seats appear.");
+        JLabel seatsNote = new JLabel("<html>Only online active trips with a compatible route and enough seats appear. "
+                + "Estimated fare is a demonstration only, based on the campus graph at ৳10/km; no payment is collected.</html>");
         seatsNote.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
         seatsNote.setForeground(MUTED);
 
@@ -385,7 +415,14 @@ public class PassengerDashboard extends JFrame {
         footer.add(seatsNote, BorderLayout.NORTH);
         footer.add(actions, BorderLayout.CENTER);
 
-        card.add(summary, BorderLayout.NORTH);
+        JPanel selectionHeader = new JPanel(new BorderLayout(0, 8));
+        selectionHeader.setOpaque(false);
+        JLabel rideType = new JLabel("Shared Rickshaw");
+        rideType.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 14));
+        rideType.setForeground(NAVY);
+        selectionHeader.add(summary, BorderLayout.NORTH);
+        selectionHeader.add(rideType, BorderLayout.SOUTH);
+        card.add(selectionHeader, BorderLayout.NORTH);
         card.add(list, BorderLayout.CENTER);
         card.add(footer, BorderLayout.SOUTH);
         return card;
@@ -487,6 +524,7 @@ public class PassengerDashboard extends JFrame {
             refreshAvailableRickshaws(false);
             return;
         }
+        campusMapPanel.setAvailableVehicleLocationIds(List.of());
         List<String> updates = rideService.getRideUpdates(trackedRideId);
         while (displayedUpdateCount < updates.size()) {
             rideStatusArea.append(updates.get(displayedUpdateCount++) + "\n");
@@ -560,6 +598,7 @@ public class PassengerDashboard extends JFrame {
         requestRideButton.setEnabled(false);
         Location pickup = (Location) pickupBox.getSelectedItem();
         Location destination = (Location) destinationBox.getSelectedItem();
+        updateSelectedRouteEstimate(pickup, destination);
         if (pickup == null || destination == null || pickup.getId().equals(destination.getId())) {
             rickshawModel.clear();
             availableCount.setText("Choose different pickup and destination stops.");
@@ -602,6 +641,8 @@ public class PassengerDashboard extends JFrame {
             }
         }
         availableCount.setText(matches.size() + " compatible active trip(s) found");
+        campusMapPanel.setAvailableVehicleLocationIds(matches.stream()
+                .map(match -> match.getRickshaw().getLocationId()).toList());
         if (matches.isEmpty()) {
             selectedTripSeats.setText("No compatible active trip selected.");
             if (userInitiated && trackedRideId == null) {
@@ -636,15 +677,44 @@ public class PassengerDashboard extends JFrame {
 
     private void clearTripOptions() {
         rickshawModel.clear();
+        campusMapPanel.setAvailableVehicleLocationIds(List.of());
         requestRideButton.setEnabled(false);
         if (trackedRideId == null) {
             message.showSuccess("Choose your stops and search for available rickshaws.");
         }
         Location pickup = (Location) pickupBox.getSelectedItem();
         Location destination = (Location) destinationBox.getSelectedItem();
+        updateSelectedRouteEstimate(pickup, destination);
         updateMapViews(List.of(), "", pickup == null ? "" : pickup.getId(),
                 destination == null ? "" : destination.getId(),
                 "Choose a trip to view its route", "");
+    }
+
+    private void updateSelectedRouteEstimate(Location pickup, Location destination) {
+        if (pickup == null || destination == null || pickup.getId().equals(destination.getId())) {
+            selectedRouteEstimate.setText("Estimated fare unavailable");
+            return;
+        }
+        RouteResult route = routeService.findRoute(pickup.getId(), destination.getId());
+        OptionalLong fare = service.EstimatedFareCalculator.estimateFare(route);
+        if (!fare.isPresent()) {
+            selectedRouteEstimate.setText("Estimated fare unavailable");
+            return;
+        }
+        double distanceKilometers = route.getTotalDistanceMeters() / 1000;
+        selectedRouteEstimate.setText(String.format(Locale.ROOT,
+                "Route %.2f km · Estimated fare ৳%d", distanceKilometers, fare.getAsLong()));
+    }
+
+    private String estimateFareForDisplay() {
+        Location pickup = (Location) pickupBox.getSelectedItem();
+        Location destination = (Location) destinationBox.getSelectedItem();
+        if (pickup == null || destination == null || pickup.getId().equals(destination.getId())) {
+            return "Fare unavailable";
+        }
+        OptionalLong fare = service.EstimatedFareCalculator.estimateFare(
+                routeService.findRoute(pickup.getId(), destination.getId()));
+        return fare.isPresent() ? "Estimated fare ৳" + fare.getAsLong() : "Fare unavailable";
     }
 
     private void updateMapViews(List<String> route, String currentLocationId,
